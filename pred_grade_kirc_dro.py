@@ -3,10 +3,6 @@ sys.path.append('/home/jupyter/LUAD/Lung')
 
 from imports import *
 
-#define the random state
-
-# Set up your default hyperparameters before wandb.init
-# so they get properly set in the sweep
 hyperparameter_defaults = dict(
     min_num_slides_p_hosp = 5,
     train_c = 0.00,
