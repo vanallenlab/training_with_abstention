@@ -260,7 +260,7 @@ def create_tp_vp(lp, GROUP_COL, train_size, random_state, label = 'healthy', num
     splits_iterator = iter(splits)
 
     ct = 0
-    while all([(x not in y) for (x, y) in itertools.product(list(range(num_classes)), [td_ctr, vd_ctr])]):
+    while any([(x not in y) for (x, y) in itertools.product(list(range(num_classes)), [td_ctr, vd_ctr])]):
         ct += 1
         if ct > 11:
             sys.exit()
@@ -286,9 +286,6 @@ def create_tp_vp(lp, GROUP_COL, train_size, random_state, label = 'healthy', num
         td_ctr = collections.Counter(train_paths.healthy.values)
         vd_ctr = collections.Counter(val_paths.healthy.values)
         print('train distribution', td_ctr,  'val distribution', vd_ctr)
-    
-    wandb.log({'num_train_samples' : len(train_paths)})
-    wandb.log({'num_val_samples' : len(val_paths)})
     
     return train_paths, val_paths
 
