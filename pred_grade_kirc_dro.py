@@ -34,10 +34,6 @@ val_set_whole = kirk_whole_g24[kirk_whole_g24['source_id'].isin(val_hosps)]
 val_paths = val_paths.sample(n = min(len(val_paths), config.num_val), random_state = random_state)
 val_set_sample = preprocess_df(val_set_whole, num_hosps = 'all', num_tiles = 200, min_num_slides_p_hosp = 0, min_num_tiles_p_slide = 200, replace = False)
 
-train_dataset = 
-
-val_dataset = 
-
 #Create Train Data Loader
 train_dataloader = DataLoader(SlideDataset(
         paths=train_paths.full_path.values,
