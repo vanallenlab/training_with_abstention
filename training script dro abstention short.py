@@ -15,24 +15,11 @@ dataset_sample = preprocess_df(dataset, num_hosps = num_unhealthy_hosps,
                                      min_num_slides_p_hosp = min_num_slides_p_hosp, 
                                      min_num_tiles_p_slide = min_num_tiles_p_slide, 
                                      replace = replace
-                                     )
-
-all_hosps = dataset['source_id'].unique()
+                                )
 
 train_paths, val_paths = create_tp_vp(lp, GROUP_COL, train_size, random_state, label = 'healthy', num_classes = 2, replace = False)
 
-#Keeping track of the sources
-train_sources = sorted(list(set(train_paths['source_id'])))
-val_sources = sorted(list(set(val_paths['source_id'])))
-uniq_srcs = list(set(dataset['source_id']))
-
-
-# train_paths = train_paths.sample(n = 1000, random_state = random_state)
-val_hosps = val_paths['source_id'].unique()
-val_set_whole = dataset[dataset['source_id'].isin(val_hosps)]
-
 val_paths = val_paths.sample(n = min(len(val_paths), config.num_val), random_state = random_state)
-val_set_sample = preprocess_df(val_set_whole, num_hosps = 'all', num_tiles = 200, min_num_slides_p_hosp = 0, min_num_tiles_p_slide = 200, replace = False)
 
 #Create Train Data Loader
 train_dataloader = DataLoader(SlideDataset(
