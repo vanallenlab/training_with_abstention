@@ -285,14 +285,6 @@ while (0 not in td_ctr) or (1 not in td_ctr)  or (0 not in vd_ctr) or (1 not in 
     ted_ctr = collections.Counter(test_set.healthy.values)
     print('train distribution', td_ctr,  'val distribution', vd_ctr)
 
-# try:
-#     wandb.log(dict(td_ctr))
-#     wandb.log(dict(vd_ctr))
-#     wandb.log(dict(ted_ctr))
-# except Exception as e:
-#     print(e)
-#     pass
-
 #Keeping track of the sources
 train_sources = sorted(list(set(train_paths['source_id'])))
 val_sources = sorted(list(set(val_paths['source_id'])))
@@ -559,7 +551,3 @@ if config.infer == 'True':
 
 
 wandb.finish()
-
-# Clear the memory
-# torch.cuda.empty_cache()
-# del model
