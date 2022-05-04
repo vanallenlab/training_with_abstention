@@ -44,6 +44,7 @@ def pred_source():
     random.seed(a=random_state, version=2)
     seed_everything(random_state)
 
+    #Keeping track of hyperparameter configuration
     EXP = f'CE,tsk:src,nrm:{config.normalize},val_stain:{config.val_stain},srcs:{num_srcs},sp:{config.sp},img:{config.img},s:{s},fold:{config.iter},num_tiles:{config.num_tiles},num_slides:{config.num_slides}'
 
     if col_sch == 'RGB':
@@ -53,13 +54,17 @@ def pred_source():
         train_transform = HSVTrainTransform  
         eval_transform = HSVEvalTransform
     
-    #Read the data file
-    lp =  data_prep(normalize = config.normalize, random_state = random_state, num_tiles = config.num_tiles, pre_train_infer = False, post_train_infer = False, EXP = EXP, num_sources = num_srcs, num_slides = config.num_slides)
+    #Prepare the data
+    lp =  data_prep(normalize = config.normalize, \
+                            random_state = random_state, \
+                                num_tiles = config.num_tiles, \
+                                    pre_train_infer = False, \
+                                        post_train_infer = False, \
+                                            EXP = EXP, \
+                                                num_sources = num_srcs, \
+                                                    num_slides = config.num_slides)
 
-    #Read the unhealthy dataset
-    unhealthy = pd.read_csv('/home/jupyter/LUAD/Lung/data/lung_paths.csv')
-    #Read the healthy dataset
-    healthy = pd.read_csv('/home/jupyter/LUAD/Lung/data/lung_healthy_paths.csv')
+    
 
     #Create group splitting object
     gss = GroupShuffleSplit(n_splits=1, train_size=0.7, random_state=random_state)
@@ -73,6 +78,10 @@ def pred_source():
     val_paths, train_paths = balance_labels(val_paths, 'source_id'), balance_labels(train_paths, 'source_id')
     
     if (config.normalize != 'staintools') &  (config.sp == 'slide_id'):
+        #Read the unhealthy dataset
+        unhealthy = pd.read_csv('/home/jupyter/LUAD/Lung/data/lung_paths.csv')
+        #Read the healthy dataset
+        healthy = pd.read_csv('/home/jupyter/LUAD/Lung/data/lung_healthy_paths.csv')
         lp_cp = pd.concat([unhealthy, healthy])
         lp_cp['source_id'] = lp_cp['slide_id'].str.slice(len('TCGA-'), len('TCGA-44'))  
         val_pts = val_paths['slide_id'].unique()
@@ -83,10 +92,6 @@ def pred_source():
       val_paths['full_path'] = val_paths['full_path'].str[:-len('_t2.png')] + '_t1.png'
 
 
-    if len(train_paths) < len(val_paths):
-        pass
-    #   train_paths, val_paths = val_paths, train_paths
-    
     wandb.log({'num_train_samples' : len(train_paths)})
     wandb.log({'num_val_samples' : len(val_paths)})
     

@@ -167,9 +167,10 @@ def data_prep(normalize = 'staintools',
 
     lp = pd.concat([unhealthy, healthy])
 
+    #If we are taking stain normalized tiles, switch to taking those tiles
     lp = get_tiles(normalize, lp)    
     
-    #find the largest hospitals and take only those slides for further processing
+    #find the largest hospitals by number of slides and take only those slides for further processing
     lp = find_largest_hosps(df = lp, num_tiles= num_tiles, n = num_sources)  
 
     print(lp.groupby('source_id').nunique())
@@ -177,39 +178,26 @@ def data_prep(normalize = 'staintools',
     lp.reset_index(inplace = True, drop = True)
 
     #Sample the same number of tiles from each dataset (evenly for each patient)
-    # print(unhealthy.groupby(['slide_id']).size().sort_values(ascending=False))
-
     lp = lp.groupby(['source_id']).apply(lambda x: sample_tiles_n_slides(x, num_slides, num_tiles)).reset_index(drop = True)
 
-    print("lp.nunique")
-    print(lp.nunique)
     lp.reset_index(drop = True, inplace = True)
 
     #Get the IDs as ordinal numbers
     enc = OrdinalEncoder()
     lp['source_id'] = enc.fit_transform(lp[['source_id']])    
-    # lp['slide_id'] = enc.fit_transform(lp[['slide_id']])
     lp['source_id'] = torch.from_numpy(lp['source_id'].values.astype(float)).type(torch.LongTensor) 
-    # lp['slide_id'] = torch.from_numpy(lp['slide_id'].values.astype(float)).type(torch.LongTensor) 
 
     #See the data so you know it is right
-    # print(lp.columns)
-    # print(lp.head())
 
     lp.to_csv('/home/jupyter/LUAD/Lung/lps/' + EXP + '.csv')
  
-    #Pretraining embeddings
+    # Additional Utilities to create embeddings before training
     if pre_train_infer == True:
         model = PretrainedResnet50FT(hparams = {'num_classes' : 5})
         model = nn.DataParallel(model).to('cuda')
 
         create_adata(paths = lp, run_name = EXP, model = model, sup = 'unsup')        
-        # EXP = "astral-jazz-56"
-        # create_umap_w_tiles(EXP, outer_box = 'num_srcs_clusters', inner_box = 'source_id')
-        # create_umap_w_tiles(EXP, outer_box = 'num_slds_clusters', inner_box = 'slide_id')
-
         create_umap_w_tiles(run_name = EXP, outer_box = 'source_id', inner_box = 'slide_id', sup = 'unsup', outer_bw = 0)
-
 
     if post_train_infer == True:
         
