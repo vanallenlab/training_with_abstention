@@ -1,8 +1,4 @@
-import sys
 from imports import *
-from pytorch_lightning.callbacks import Callback
-import distutils
-from distutils import util
 from data_prep import data_prep
 from umap_w_tiles_bdries import *
 
@@ -74,27 +70,13 @@ def pred_source():
     #Create train and val paths
     train_paths, val_paths = lp.iloc[train_idx] , lp.iloc[val_idx]
 
-    #Balance by label
+    #Balance by source site
     val_paths, train_paths = balance_labels(val_paths, 'source_id'), balance_labels(train_paths, 'source_id')
     
-    if (config.normalize != 'staintools') &  (config.sp == 'slide_id'):
-        #Read the unhealthy dataset
-        unhealthy = pd.read_csv('/home/jupyter/LUAD/Lung/data/lung_paths.csv')
-        #Read the healthy dataset
-        healthy = pd.read_csv('/home/jupyter/LUAD/Lung/data/lung_healthy_paths.csv')
-        lp_cp = pd.concat([unhealthy, healthy])
-        lp_cp['source_id'] = lp_cp['slide_id'].str.slice(len('TCGA-'), len('TCGA-44'))  
-        val_pts = val_paths['slide_id'].unique()
-        val_whole = lp_cp[lp_cp['slide_id'].isin(val_pts)]
-        val_whole.full_path = val_whole.full_path.str.replace('/mnt/disks/data_disk/', '/home/jupyter/')
-
+    #If stain normalizing, read file from previously written set of stain normalized tiles
     if (config.normalize == 'staintools') & (config.val_stain != 'same'): 
       val_paths['full_path'] = val_paths['full_path'].str[:-len('_t2.png')] + '_t1.png'
 
-
-    wandb.log({'num_train_samples' : len(train_paths)})
-    wandb.log({'num_val_samples' : len(val_paths)})
-    
     #Just some checks to check that the patients don't overlap
     assert set(val_paths[grp_col]).intersection(set(train_paths[grp_col])) == set()
 
@@ -121,10 +103,6 @@ def pred_source():
 
     #Create Val Data Loader
     val_dataloader = DataLoader(val_dataset, batch_size=128, shuffle=False, pin_memory=True, num_workers=10)
-
-    #important - need this for source site accuracy prediction        
-    uniq_srcs = sorted(list(set(lp['case_id'].str.slice(len('TCGA-'), len('TCGA-44')))))
-    srcs_map = {uniq_srcs[i] : i for i in range(len(uniq_srcs))}
 
     #Create model
     
@@ -155,13 +133,7 @@ def pred_source():
     #Create a trainer obj
     trainer = pl.Trainer(gpus=-1, 
                         distributed_backend='ddp',
-                        # benchmark=True,
-                        # weights_summary=None,
                         max_epochs=100, 
-                        # auto_lr_find = True,
-                        # auto_scale_batch_size='binsearch',
-                        # gradient_clip_val=0.0,
-                        # track_grad_norm=-1,
                         callbacks=[early_stop_callback], 
                         logger=logger,
                         limit_train_batches=1.0,
@@ -180,16 +152,6 @@ def pred_source():
 
         val_paths.to_csv(f'/home/jupyter/LUAD/Lung/pred_source/val_paths/{EXP}.csv')
 
-        # trainer.test(model, val_dataloader)
-    else:
-        model.load_state_dict(torch.load('./starfish_wandb_wts/starfish_wandb_wts' + '_' + EXP))
-    
-    if config.infer == True:
-        create_adata(paths = val_paths, run_name = EXP, model = model, sup = 'sup_ce', col_sch = col_sch)
-        create_umap_w_tiles(run_name = EXP, outer_box = 'source_id', inner_box = 'source_id', sup = 'sup_ce', outer_bw = 5)
-    
-    if config.infer_whole_slides == 'True':
-        create_adata(paths = val_whole, run_name = EXP, model = model, sup = 'sup_ce_val_whole', col_sch = col_sch, downsample=False)
 
 if __name__ == '__main__':
     pred_source()

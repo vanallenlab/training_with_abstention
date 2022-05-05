@@ -1,16 +1,15 @@
 def sample_tiles_n_slides(x, num_slides, num_tiles):
         slides_sorted_by_size = x.groupby(['slide_id'])['full_path'].nunique().sort_values(ascending=False).index
         slides = slides_sorted_by_size[:num_slides]
-        # slides = np.random.choice(x['slide_id'].unique(), size = min(num_slides, len(x['slide_id'].unique())), replace = False)
         x = x[x['slide_id'].isin(slides)]
         
-        print(x.groupby(['slide_id']).agg('count'))
-
         return x.groupby(['slide_id']).apply(lambda x: x.sample(n=num_tiles, replace=False)).reset_index(drop = True)
 
 def sample_tiles_n_slides_from_source(x, num_slides = 5, num_tiles = 100):
     return x.groupby(['source_id']).apply(lambda x: sample_tiles_n_slides(x = x, num_slides = num_slides, num_tiles = num_tiles)).reset_index(drop = True)
 
+
+#Code to create training paths and validation paths
 def create_tp_vp(lp, 
                 GROUP_COL, 
                 train_size, 
@@ -18,7 +17,13 @@ def create_tp_vp(lp,
                 label = None, 
                 num_classes = 2, 
                 replace = False):
+    """
+    lp: The DataFrame used 
+    Group_col: The column used to split the data into training and validation- used to split the data by patient, for example
+    train_size: What proportion / How many rows to keep in training 
+    label: The column predicted
     
+    """    
     gss = GroupShuffleSplit(n_splits=100, train_size=train_size, random_state=random_state)
     splits = list(gss.split(X = list(range(len(lp))), groups = lp[GROUP_COL]))
 
@@ -110,124 +115,51 @@ def balance_labels(df, label_col, random_state=1, replace = False):
 
 
 def sample_tiles_n_slides(x, num_slides, num_tiles):
-        slides = np.random.choice(x['slide_id'].unique(), size = min(num_slides, len(x['slide_id'].unique())), replace = False)
-        x = x[x['slide_id'].isin(slides)]
-        x.sample(n=num_tiles, replace=False)
-        return x.groupby(['slide_id']).apply(lambda x: x.sample(n=num_tiles, replace=False)).reset_index(drop = True)
+    #Sample num_slides    
+    slides = np.random.choice(x['slide_id'].unique(), size = min(num_slides, len(x['slide_id'].unique())), replace = False)
+    x = x[x['slide_id'].isin(slides)]
+    x.sample(n=num_tiles, replace=False)
+    return x.groupby(['slide_id']).apply(lambda x: x.sample(n=num_tiles, replace=False)).reset_index(drop = True)
 
-def find_largest_hosps(df, num_tiles = 1000, n = 5):  
+def find_largest_hosps(df, num_tiles = 1000, num_sources = 5):  
 
-    n_largest_hosps = df.groupby(['source_id'])['slide_id'].nunique().sort_values(ascending=False).index[:n]
+    # Get the largest hospitals by number of slides
+    n_largest_hosps = df.groupby(['source_id'])['slide_id'].nunique().sort_values(ascending=False).index[:num_sources]
     
-    # print('n largest hosps', n_largest_hosps)    
-
-    # print('hospitals sorted by slide', df.groupby(['source_id'])['slide_id'].nunique().sort_values(ascending=False))
-    
+    # Include slides only from these hospitals. Exclude slides from other hospitals
     df_largest_h = df[df['source_id'].isin(n_largest_hosps)]
     
+    # Exclude slides having fewer than "num_tiles" tiles
     filtered = df_largest_h.groupby('slide_id')['full_path'].filter(lambda x: len(x) >= num_tiles)
-
-    # print('hospitals with at least num_tiles tiles', df_largest_h[df_largest_h['full_path'].isin(filtered)])
 
     return df_largest_h[df_largest_h['full_path'].isin(filtered)]
 
-def get_tiles(normalize, unhealthy):
-    #Get the case IDs for the patients
-    unhealthy['case_id'] = unhealthy['slide_id'].str.slice(0, len('TCGA-44-6144'))
-    #Get the IDs for the Sources
-    unhealthy['source_id'] = unhealthy['slide_id'].str.slice(len('TCGA-'), len('TCGA-44'))  
-    #Change the file paths
-    unhealthy.full_path = unhealthy.full_path.str.replace('/mnt/disks/data_disk/', '/home/jupyter/')
-    if normalize == 'staintools':
-        imgs_we_have = [img[:-len('_t2.png')] + '.png' for x in tqdm(os.walk('/home/jupyter/LUAD/')) for img in glob(os.path.join(x[0], '*t2.png'))]
-        unhealthy = unhealthy[unhealthy['full_path'].isin(imgs_we_have)]
-        unhealthy['full_path'] = unhealthy['full_path'].str[:-len('.png')] + '_t2.png'
-    return unhealthy
-
-def data_prep(normalize = 'staintools', 
-                random_state = 1,
-                num_tiles = 10,
-                pre_train_infer = True,
-                post_train_infer = False, 
-                EXP = 'wandb', 
+def data_prep( 
+                EXP = wandb.run.name(), 
+                num_tiles = 100,
                 num_sources = 5, 
                 num_slides = 5
             ):
     
-    if EXP == 'wandb':
-        run = wandb.init(config = {})
-        EXP = wandb.run.name
-        
-    print('EXP', EXP)
- 
-    #Read the unhealthy dataset
-    unhealthy = pd.read_csv('/home/jupyter/LUAD/Lung/data/lung_paths.csv')
-    #Read the healthy dataset
-    healthy = pd.read_csv('/home/jupyter/LUAD/Lung/data/lung_healthy_paths.csv')
-
-    lp = pd.concat([unhealthy, healthy])
-
-    #If we are taking stain normalized tiles, switch to taking those tiles
-    lp = get_tiles(normalize, lp)    
+    """
+    Returns a dataset for the source site prediction task. 
+    Removes slides with less than num_tiles tiles. Samples 'num_sources' sources from the input dataframe,
+    'num_slides' slides from each source and 'num_tiles' tiles from each slide. 
+    """
     
-    #find the largest hospitals by number of slides and take only those slides for further processing
-    lp = find_largest_hosps(df = lp, num_tiles= num_tiles, n = num_sources)  
+    lp = pd.read_csv('dataset.csv')
 
-    print(lp.groupby('source_id').nunique())
-    
-    lp.reset_index(inplace = True, drop = True)
+    #find the largest hospitals by number of slides, and slides with at least 'num_tiles' tiles and take only those slides for further processing
+    lp = find_largest_hosps(df = lp, num_tiles= num_tiles, num_sources = num_sources)  
 
     #Sample the same number of tiles from each dataset (evenly for each patient)
     lp = lp.groupby(['source_id']).apply(lambda x: sample_tiles_n_slides(x, num_slides, num_tiles)).reset_index(drop = True)
 
-    lp.reset_index(drop = True, inplace = True)
-
-    #Get the IDs as ordinal numbers
+    #Get the IDs as ordinal numbers    
     enc = OrdinalEncoder()
     lp['source_id'] = enc.fit_transform(lp[['source_id']])    
-    lp['source_id'] = torch.from_numpy(lp['source_id'].values.astype(float)).type(torch.LongTensor) 
-
-    #See the data so you know it is right
-
+    
+    #Save the data
     lp.to_csv('/home/jupyter/LUAD/Lung/lps/' + EXP + '.csv')
  
-    # Additional Utilities to create embeddings before training
-    if pre_train_infer == True:
-        model = PretrainedResnet50FT(hparams = {'num_classes' : 5})
-        model = nn.DataParallel(model).to('cuda')
-
-        create_adata(paths = lp, run_name = EXP, model = model, sup = 'unsup')        
-        create_umap_w_tiles(run_name = EXP, outer_box = 'source_id', inner_box = 'slide_id', sup = 'unsup', outer_bw = 0)
-
-    if post_train_infer == True:
-        
-        model = PretrainedResnet50FT_contrastive_multitask(hparams = {'lr' : 1e-7, 
-        'num_classes' : num_sources, 
-        'srcs_map' : None, 
-        'include_ce_loss' : None})
-        
-        model_name = EXP #"ce_loss:False,tsk:src,srcs:5,sp:x,img:RGB,s:0,ts:1059|0407,fold:1"
-
-        # # Load the pre-trained weights
-        model.load_state_dict(torch.load('/home/jupyter/LUAD/Lung/weights/weights_' + model_name))
-
-        create_adata(paths = lp, run_name = EXP, model = model, sup = 'sup_star')        
-
-        create_umap_w_tiles(run_name = EXP, outer_box = 'source_id', inner_box = 'slide_id', sup = 'sup_star', outer_bw = 0)
-
-        #######
-
-        model = PretrainedResnet50FT(hparams = {'lr' : 1e-7, 
-                                    'num_classes' : num_sources
-                                    })
-        
-        model_name = EXP #"task=source,hosps=5largest,pts=atleast,tiles=1000,split=patient,balance=pt&label,val=0.3,image=RGB,sample=wo,,estop5,timestamp=1441|0404fold0"
-
-        # # Load the pre-trained weights
-        model.load_state_dict(torch.load('/home/jupyter/LUAD/Lung/weights/weights_' + model_name))
-
-        create_adata(paths = lp, run_name = EXP, model = model, sup = 'sup_ce')
-
-        create_umap_w_tiles(run_name = EXP, outer_box = 'source_id', inner_box = 'slide_id', sup = 'sup_ce', outer_bw = 0)
-    
     return lp
