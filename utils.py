@@ -1,14 +1,3 @@
-def sample_tiles_n_slides(x, num_slides, num_tiles):
-        slides_sorted_by_size = x.groupby(['slide_id'])['full_path'].nunique().sort_values(ascending=False).index
-        slides = slides_sorted_by_size[:num_slides]
-        x = x[x['slide_id'].isin(slides)]
-        
-        return x.groupby(['slide_id']).apply(lambda x: x.sample(n=num_tiles, replace=False)).reset_index(drop = True)
-
-def sample_tiles_n_slides_from_source(x, num_slides = 5, num_tiles = 100):
-    return x.groupby(['source_id']).apply(lambda x: sample_tiles_n_slides(x = x, num_slides = num_slides, num_tiles = num_tiles)).reset_index(drop = True)
-
-
 #Code to create training paths and validation paths
 def create_tp_vp(lp, 
                 GROUP_COL, 
@@ -55,9 +44,9 @@ def preprocess_df(df,
 
     #Throw out hospitals with less than some number of slides
     n_slides = df.groupby('source_id')['slide_id'].nunique()
-    print('before filter by min_num_slides_p_hosp', n_slides)
+
     at_least_n_slides = n_slides[n_slides > min_num_slides_p_hosp]
-    print('after filter by min_num_slides_p_hosp', n_slides)
+
     df = df[df['source_id'].isin(at_least_n_slides.index)]
 
     all_hosps_sorted = df.groupby(['source_id'])['slide_id'].nunique().sort_values(ascending=False).index
@@ -67,8 +56,6 @@ def preprocess_df(df,
     else:
         n_largest_hosps = all_hosps_sorted[:num_hosps]
 
-    print(n_largest_hosps)
-
     df = df[df['source_id'].isin(n_largest_hosps)]
     
     if replace == False:
@@ -76,18 +63,17 @@ def preprocess_df(df,
         filtered = df.groupby('slide_id')['full_path'].filter(lambda x: len(x) >= min_num_tiles_p_slide)
         df = df[df['full_path'].isin(filtered)]
 
-    #Change the file paths
-    df.full_path = df.full_path.str.replace('/mnt/disks/data_disk/', '/home/jupyter/')
-
+    
     #return a certain number of tiles for each slide
     df = df.groupby(['slide_id']).apply(lambda x: x.sample(n=num_tiles, replace=replace)).reset_index(drop = True)
 
-    print('after filter by min_num_tiles_p_slide', df.groupby(['source_id'])['slide_id'].nunique().sort_values(ascending=False).index)
-
     return df
 
-def balance_labels(df, label_col, random_state=1, replace = False):
 
+def balance_labels(df, label_col, random_state=1, replace = False):
+"""
+Code to balance the labels by the values of label_col at random 
+"""
     #Check the distributions
     ctr = collections.Counter(df[label_col].values)
 
@@ -97,28 +83,25 @@ def balance_labels(df, label_col, random_state=1, replace = False):
     else:
         num_p_class = max(ctr.values())
 
-    print('min_class_num', num_p_class)
-
     df = pd.concat([
         df[df[label_col] == i].sample(n=num_p_class, replace = replace, random_state=random_state) for i in ctr.keys()           
     ])
 
-    #Shuffle the validation set
+    #Shuffle the data set
     df = df.sample(frac=1.0, random_state=random_state)
     df.reset_index(drop = True, inplace = True)
 
     #Check the distributions
     ctr = collections.Counter(df[label_col].values)
-    print('after balancing, label distribution', ctr)
-
+    
     return df
 
 
 def sample_tiles_n_slides(x, num_slides, num_tiles):
-    #Sample num_slides    
+    #Sample 'num_slides' slides from each hospital. Sample the minimum number of slides available at that hospital, if num_slides slides are not available    
     slides = np.random.choice(x['slide_id'].unique(), size = min(num_slides, len(x['slide_id'].unique())), replace = False)
     x = x[x['slide_id'].isin(slides)]
-    x.sample(n=num_tiles, replace=False)
+    #Sample 'num_tiles' tiles from each slide. At least num_tiles tiles are guaranteed to be available because slides that did not have 'num_tiles' tiles were removed from the dataset in a prior step
     return x.groupby(['slide_id']).apply(lambda x: x.sample(n=num_tiles, replace=False)).reset_index(drop = True)
 
 def find_largest_hosps(df, num_tiles = 1000, num_sources = 5):  
