@@ -51,17 +51,8 @@ def pred_source():
         eval_transform = HSVEvalTransform
     
     #Prepare the data
-    lp =  data_prep(normalize = config.normalize, \
-                            random_state = random_state, \
-                                num_tiles = config.num_tiles, \
-                                    pre_train_infer = False, \
-                                        post_train_infer = False, \
-                                            EXP = EXP, \
-                                                num_sources = num_srcs, \
-                                                    num_slides = config.num_slides)
-
+    lp =  data_prep(normalize = config.normalize, random_state = random_state, num_tiles = config.num_tiles, EXP = EXP, num_sources = num_srcs, num_slides = config.num_slides)
     
-
     #Create group splitting object
     gss = GroupShuffleSplit(n_splits=1, train_size=0.7, random_state=random_state)
     
